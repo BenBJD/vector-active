@@ -1,0 +1,55 @@
+{
+  "name": "vector-active",
+  "author": "BenBJD",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Vector Active",
+    "uuid": "c4298ec5-96ef-4c5c-8206-859367db7f96",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "basalt",
+      "chalk",
+      "emery",
+      "gabbro"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "usesPermissions": [
+      {
+        "name": "Health",
+        "reason": "To show steps and heart rate",
+        "required": false
+      }
+    ],
+    "configPage": "src/config.html",
+    "messageKeys": [
+      "hello",
+      "imageSize",
+      "slot",
+      "numText",
+      "numLabel",
+      "numFill",
+      "iconHint",
+      "imgLabel",
+      "iconWidth",
+      "iconHeight",
+      "iconPalette",
+      "iconPixels",
+      "theme",
+      "showDot",
+      "leadingZero",
+      "timeFont",
+      "stackedTime"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}

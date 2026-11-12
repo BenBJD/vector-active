@@ -1,0 +1,364 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vector Active</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      font-family: system-ui, -apple-system, Roboto, sans-serif;
+      background: #121212;
+      color: #f1f1f1;
+      margin: 0;
+      padding: 20px 18px 40px;
+    }
+    h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+    .sub { font-size: 13px; color: #9aa0a6; margin: 0 0 20px; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 22px 0 12px;
+    }
+    .section-head h2 { font-size: 16px; font-weight: 500; margin: 0; }
+    .section-head span { font-size: 14px; color: #9aa0a6; }
+    .swatches {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding: 4px 2px 10px;
+    }
+    .swatch {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      border: 3px solid transparent;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+    .swatch.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 0 2px #121212 inset;
+    }
+    .card {
+      background: #1e1e1e;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+    .toggle-row + .toggle-row {
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .slot-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .slot-preview {
+      font-weight: 400;
+      color: #ff6b6b;
+      font-size: 13px;
+    }
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: #2a2a2a;
+      color: #f1f1f1;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button.reset {
+      width: 100%;
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,100,100,0.45);
+      background: transparent;
+      color: #ff7a7a;
+      font-size: 15px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1>Active</h1>
+  <p class="sub" id="status">Connecting to watchface…</p>
+
+  <div class="section-head">
+    <h2>Color</h2>
+    <span id="themeName">Campari</span>
+  </div>
+  <div class="swatches" id="swatches"></div>
+
+  <div class="section-head">
+    <h2>Appearance</h2>
+  </div>
+  <div class="card">
+    <div class="toggle-row">
+      <span>Time font</span>
+      <select id="timeFont" style="width: auto; margin-top: 0; padding: 6px 10px;">
+        <option value="0">LECO (Geometric)</option>
+        <option value="1">Gothic (Rounded)</option>
+      </select>
+    </div>
+    <label class="toggle-row">
+      <span>Two-line time (hours / minutes)</span>
+      <input type="checkbox" id="stackedTime">
+    </label>
+    <label class="toggle-row">
+      <span>Ring progress dot</span>
+      <input type="checkbox" id="showDot" checked>
+    </label>
+    <label class="toggle-row">
+      <span>Leading zero in time</span>
+      <input type="checkbox" id="leadingZero" checked>
+    </label>
+  </div>
+
+  <div class="section-head">
+    <h2>Complications</h2>
+  </div>
+  <div id="slots"></div>
+
+  <button class="reset" id="resetBtn">Reset to defaults</button>
+
+  <script>
+    var THEMES = [
+      { id: 0, name: 'Campari', color: '#ff3b6b' },
+      { id: 1, name: 'Sand', color: '#e5d3c3' },
+      { id: 2, name: 'Ash', color: '#9e9c96' },
+      { id: 3, name: 'Sage', color: '#9ec494' },
+      { id: 4, name: 'Limoncello', color: '#f7ff9e' },
+      { id: 5, name: 'Sky', color: '#2998ff' },
+      { id: 6, name: 'Periwinkle', color: '#7896e8' },
+      { id: 7, name: 'Flamingo', color: '#fa73ff' }
+    ];
+
+    var SLOT_NAMES = [
+      'Top Ring',
+      'Middle Ring',
+      'Bottom Ring',
+      'Top-Left Badge',
+      'Bottom-Left Badge'
+    ];
+
+    var state = { config: null, catalogue: [], previews: {} };
+
+    function renderSwatches() {
+      var wrap = document.getElementById('swatches');
+      wrap.innerHTML = '';
+      var activeTheme = (state.config && state.config.theme) || 0;
+      var activeObj = THEMES[activeTheme] || THEMES[0];
+      document.getElementById('themeName').textContent = activeObj.name;
+
+      THEMES.forEach(function (t) {
+        var el = document.createElement('div');
+        el.className = 'swatch' + (t.id === activeTheme ? ' active' : '');
+        el.style.background = t.color;
+        el.onclick = function () {
+          state.config.theme = t.id;
+          renderSwatches();
+          Pebble.sendMessage('pkjs', { type: 'setAppearance', theme: t.id });
+        };
+        wrap.appendChild(el);
+      });
+    }
+
+    function sendAppearance() {
+      state.config.stackedTime = document.getElementById('stackedTime').checked;
+      renderSlots();
+      Pebble.sendMessage('pkjs', {
+        type: 'setAppearance',
+        timeFont: parseInt(document.getElementById('timeFont').value, 10),
+        stackedTime: state.config.stackedTime,
+        showDot: document.getElementById('showDot').checked,
+        leadingZero: document.getElementById('leadingZero').checked
+      });
+    }
+
+    function renderSlots() {
+      var wrap = document.getElementById('slots');
+      wrap.innerHTML = '';
+      var slots = (state.config && state.config.slots) || [];
+
+      SLOT_NAMES.forEach(function (name, idx) {
+        var sc = slots[idx] || { mode: 'auto' };
+        var disabledInStacked = !!(state.config && state.config.stackedTime && idx >= 3);
+        var card = document.createElement('div');
+        card.className = 'card';
+        if (disabledInStacked) card.style.opacity = '0.45';
+
+        var title = document.createElement('div');
+        title.className = 'slot-title';
+        title.innerHTML = '<span>' + name + '</span><span class="slot-preview">' +
+          (disabledInStacked ? 'Disabled in two-line mode' : (state.previews[idx] || (sc.mode === 'local' ? 'Built-in' : ''))) + '</span>';
+        card.appendChild(title);
+
+        var modeSel = document.createElement('select');
+        modeSel.disabled = disabledInStacked;
+        var baseOpts = [
+          { value: 'auto', label: 'Auto (Pebble Complications)' },
+          { value: 'local', label: 'Watch Built-in (Health / Battery)' },
+          { value: 'none', label: 'Hidden' }
+        ];
+        baseOpts.forEach(function (o) {
+          var opt = document.createElement('option');
+          opt.value = o.value;
+          opt.textContent = o.label;
+          modeSel.appendChild(opt);
+        });
+
+        state.catalogue.forEach(function (entry, ci) {
+          var opt = document.createElement('option');
+          opt.value = 'plugin:' + ci;
+          opt.textContent = entry.pluginName + ': ' + entry.category + '/' + entry.item;
+          modeSel.appendChild(opt);
+        });
+
+        if (sc.mode === 'custom') {
+          var matchIdx = state.catalogue.findIndex(function (e) {
+            return e.category === sc.category && e.item === sc.item;
+          });
+          modeSel.value = matchIdx >= 0 ? 'plugin:' + matchIdx : 'auto';
+        } else {
+          modeSel.value = sc.mode || 'auto';
+        }
+
+        var propRow = document.createElement('div');
+        propRow.className = 'row2';
+        var propSel = document.createElement('select');
+        var shapeSel = document.createElement('select');
+
+        function populateProps(entry) {
+          propSel.innerHTML = '';
+          shapeSel.innerHTML = '';
+          if (!entry) {
+            propRow.style.display = 'none';
+            return;
+          }
+          propRow.style.display = 'grid';
+          var props = Object.keys(entry.properties || {}).filter(function (k) { return k !== 'name'; });
+          if (!props.length) props = Object.keys(entry.properties || {});
+          props.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            propSel.appendChild(opt);
+          });
+          if (sc.property && props.indexOf(sc.property) !== -1) {
+            propSel.value = sc.property;
+          }
+          var shapes = (entry.properties || {})[propSel.value] || ['shortText'];
+          shapes.forEach(function (sh) {
+            var opt = document.createElement('option');
+            opt.value = sh;
+            opt.textContent = sh;
+            shapeSel.appendChild(opt);
+          });
+          if (sc.shape && shapes.indexOf(sc.shape) !== -1) {
+            shapeSel.value = sc.shape;
+          }
+        }
+
+        function saveSlot() {
+          var v = modeSel.value;
+          var newCfg;
+          if (v.indexOf('plugin:') === 0) {
+            var entry = state.catalogue[parseInt(v.split(':')[1], 10)];
+            newCfg = {
+              mode: 'custom',
+              category: entry.category,
+              item: entry.item,
+              index: 0,
+              property: propSel.value,
+              shape: shapeSel.value
+            };
+          } else {
+            newCfg = { mode: v };
+          }
+          state.config.slots[idx] = newCfg;
+          Pebble.sendMessage('pkjs', { type: 'setSlot', index: idx, slotConfig: newCfg });
+        }
+
+        modeSel.onchange = function () {
+          if (modeSel.value.indexOf('plugin:') === 0) {
+            var entry = state.catalogue[parseInt(modeSel.value.split(':')[1], 10)];
+            populateProps(entry);
+          } else {
+            populateProps(null);
+          }
+          saveSlot();
+        };
+        propSel.onchange = function () {
+          if (modeSel.value.indexOf('plugin:') === 0) {
+            var entry = state.catalogue[parseInt(modeSel.value.split(':')[1], 10)];
+            populateProps(entry);
+          }
+          saveSlot();
+        };
+        shapeSel.onchange = saveSlot;
+
+        if (sc.mode === 'custom') {
+          var matched = state.catalogue.find(function (e) {
+            return e.category === sc.category && e.item === sc.item;
+          });
+          populateProps(matched);
+        } else {
+          populateProps(null);
+        }
+
+        propRow.appendChild(propSel);
+        propRow.appendChild(shapeSel);
+        card.appendChild(modeSel);
+        card.appendChild(propRow);
+        wrap.appendChild(card);
+      });
+    }
+
+    function applyState(reply) {
+      state.config = reply.config;
+      state.catalogue = reply.catalogue || [];
+      state.previews = reply.previews || {};
+      document.getElementById('timeFont').value = String(state.config.timeFont || 0);
+      document.getElementById('stackedTime').checked = !!state.config.stackedTime;
+      document.getElementById('showDot').checked = !!state.config.showDot;
+      document.getElementById('leadingZero').checked = !!state.config.leadingZero;
+      renderSwatches();
+      renderSlots();
+    }
+
+    document.getElementById('timeFont').onchange = sendAppearance;
+    document.getElementById('stackedTime').onchange = sendAppearance;
+    document.getElementById('showDot').onchange = sendAppearance;
+    document.getElementById('leadingZero').onchange = sendAppearance;
+    document.getElementById('resetBtn').onclick = function () {
+      Pebble.sendMessage('pkjs', { type: 'reset' }).then(function (reply) {
+        if (reply && reply.config) applyState(reply);
+      });
+    };
+
+    Pebble.addEventListener('ready', function (e) {
+      if (e.target !== 'pkjs') return;
+      document.getElementById('status').textContent = 'Live — changes apply immediately';
+      Pebble.sendMessage('pkjs', { type: 'init' }).then(applyState);
+    });
+  </script>
+</body>
+</html>
